@@ -20,5 +20,12 @@ pub fn insert_new_post(
         text: form_data.text.to_owned(),
         board_id: form_data.board_id,
     };
-    diesel::insert_into(posts::table).values(&new_post).get_result(conn).expect("Error saving new post")
+    let res: i32 = diesel::insert_into(posts::table).values(new_post).returning(post_id).get_result(conn)?;
+    dbg!(res);
+    Ok(models::Post{
+        name: form_data.name.to_owned(),
+        text: form_data.text.to_owned(),
+        board_id: form_data.board_id,
+        post_id: res,
+    })
 }

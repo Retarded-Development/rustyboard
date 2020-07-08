@@ -33,8 +33,9 @@ async fn new_post(
     form: web::Form<models::NewPostForm>,
     req: HttpRequest
 ) -> Result<HttpResponse, Error> {
-    let conn = pool.get().expect("couldn't get db connection from pool");
+    
     dbg!(req.connection_info());
+    let conn = pool.get().expect("couldn't get db connection from pool");
     // use web::block to offload blocking Diesel code without blocking server thread
     let new_post = web::block(move || actions::insert_new_post(form, &conn))
         .await
