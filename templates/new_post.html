@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Index{% endblock title %}
+{% block head %}
+    {{ super() }}
+    <style type="text/css">
+        .important { color: #336699; }
+    </style>
+{% endblock head %}
+{% block content %}
+    <h1>New post</h1>
+ <form action="/new_post" method="POST">
+  <label for="name">Name:</label>
+  <input type="text" id="name" name="name" value="Bernd">
+  <br/ >
+  <label for="text">Text:</label>
+  <textarea id="text" name="text"> </textarea>
+  <br/ >
+  <input type="hidden" id="board_id" name="board_id" value="{{ board_id }}">
+  <br/ >
+  <input type="hidden" id="thread_id" name="thread_id" value="{{ thread_id }}">
+  <br/ >
+  <input type="hidden" id="parent_id" name="parent_id" value="{{ parent_id }}">
+  <br/ >
+  <input type="submit" value="Create new post">
+ </form>    
+{% endblock content %}

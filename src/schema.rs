@@ -21,6 +21,8 @@ table! {
         board_id -> Nullable<Int4>,
         ip -> Nullable<Text>,
         created_at -> Nullable<Timestamp>,
+        parent_id -> Nullable<Int4>,
+        thread_id -> Nullable<Int4>,
     }
 }
 

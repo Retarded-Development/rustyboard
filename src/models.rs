@@ -11,21 +11,25 @@ pub struct Board {
 }
 
 
-#[derive(Queryable, Serialize, Insertable)]
-#[table_name="posts"]
+#[derive(Queryable, Serialize)]
+// #[table_name="posts"]
 pub struct Post {
     pub post_id: i32,
     pub name: String,
     pub text: String,
     pub board_id: i32,
+    pub parent_id: Option<i32>,
+    pub thread_id: Option<i32>,
 }
 
-#[derive(Insertable, Queryable)]
+#[derive(Insertable)]
 #[table_name="posts"]
 pub struct NewPost {
     pub name: String,
     pub text: String,
     pub board_id: i32,
+    pub parent_id: Option<i32>,
+    pub thread_id: Option<i32>,
 }
 
 
@@ -34,4 +38,6 @@ pub struct NewPostForm {
     pub name: String,
     pub text: String,
     pub board_id: i32,
+    pub parent_id: Option<i32>,
+    pub thread_id: Option<i32>,
 }
