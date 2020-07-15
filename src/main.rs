@@ -13,35 +13,42 @@ pub mod models;
 pub mod schema;
 
 type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
-#[get("/{slug}/")]
+
+#[get("/{slug}")]
 async fn list(
-    info: web::Path<(u32, String)>,
+    info: web::Path<String>,
     tmpl: web::Data<tera::Tera>,
     pool: web::Data<DbPool>,
 ) -> Result<HttpResponse, Error> {
-
     let mut ctx = tera::Context::new();
-    ctx.insert("name", &info.1.to_owned());
-    ctx.insert("text", &"Welcome!".to_owned());
+    ctx.insert("name", &info.to_owned());
     let s = tmpl
-        .render("index.html", &ctx)
+        .render("list.html", &ctx)
         .map_err(|_| error::ErrorInternalServerError("Template error"))?;
     // format!("Hello {}! id:{}", info.1, info.0)
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-
 #[get("/{slug}/{id}/")]
 async fn detail(
-    info: web::Path<(u32, String)>,
+    info: web::Path<(String, i32)>,
     tmpl: web::Data<tera::Tera>,
     pool: web::Data<DbPool>,
 ) -> Result<HttpResponse, Error> {
+    let conn = pool.get().expect("couldn't get db connection from pool");
+    // use web::block to offload blocking Diesel code without blocking server thread
     let mut ctx = tera::Context::new();
-    ctx.insert("name", &info.1.to_owned());
-    ctx.insert("text", &"Welcome!".to_owned());
+    ctx.insert("thread_id", &info.1);
+    let posts = web::block(move || actions::get_posts(info.1, &conn))
+        .await
+        .map_err(|e| {
+            eprintln!("{}", e);
+            HttpResponse::InternalServerError().finish()
+        })?;
+
+    ctx.insert("posts", &posts);
     let s = tmpl
-        .render("index.html", &ctx)
+        .render("detail.html", &ctx)
         .map_err(|_| error::ErrorInternalServerError("Template error"))?;
     // format!("Hello {}! id:{}", info.1, info.0)
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
@@ -71,22 +78,26 @@ async fn new_thread(
     dbg!(req.headers());
     let conn = pool.get().expect("couldn't get db connection from pool");
     // use web::block to offload blocking Diesel code without blocking server thread
+
     let other_new_post = web::block(move || actions::insert_new_post(form, &conn))
         .await
         .map_err(|e| {
             eprintln!("{}", e);
             HttpResponse::InternalServerError().finish()
         })?;
-    let post_id = other_new_post.post_id;
-    let conn = pool.get().expect("couldn't get db connection from pool");
-    let board = web::block(move || actions::get_board(other_new_post.board_id, &conn)).await?;
-    Ok(HttpResponse::Found()
-        .header(
-            http::header::LOCATION,
-            format!("http://localhost:8080{}/{}?nocache=true", board, post_id),
-        )
-        .finish()
-        .into_body())
+    if let Some(p) = other_new_post.board_id {
+        let conn = pool.get().expect("couldn't get db connection from pool");
+        let board = web::block(move || actions::get_board(p.clone(), &conn)).await?;
+        let post_id = other_new_post.post_id;
+        return Ok(HttpResponse::Found()
+            .header(
+                http::header::LOCATION,
+                format!("http://localhost:8080{}/{}?nocache=true", board, post_id),
+            )
+            .finish()
+            .into_body());
+    };
+    Ok(HttpResponse::InternalServerError().finish())
 }
 
 #[get("/{id}/{thread_id}/{parent_id}/new_post")]
@@ -123,18 +134,19 @@ async fn new_post(
         })?;
 
     let mut post_id = new_post.post_id;
-    if let Some(parent_id) = new_post.parent_id {
-        post_id = parent_id;
+    if let (Some(parent_id), Some(thread_id), Some(board_id)) = (new_post.parent_id, new_post.thread_id, new_post.board_id) {
+        let conn = pool.get().expect("couldn't get db connection from pool");
+        let board = web::block(move || actions::get_board(board_id, &conn)).await?;
+        return Ok(HttpResponse::Found()
+            .header(
+                http::header::LOCATION,
+                format!("http://localhost:8080{}/{}/?nocache=true", board, thread_id),
+            )
+            .finish()
+            .into_body())
     }
-    let conn = pool.get().expect("couldn't get db connection from pool");
-    let board = web::block(move || actions::get_board(new_post.board_id, &conn)).await?;
-    Ok(HttpResponse::Found()
-        .header(
-            http::header::LOCATION,
-            format!("http://localhost:8080{}/{}/?nocache=true", board, post_id),
-        )
-        .finish()
-        .into_body())
+
+    Ok(HttpResponse::InternalServerError().finish())
 }
 
 #[actix_rt::main]
@@ -160,8 +172,8 @@ async fn main() -> std::io::Result<()> {
             .data(pool.clone())
             .data(tera)
             .wrap(middleware::Logger::default())
-            .service(list)
             .service(detail)
+            .service(list)
             .service(new_post)
             .service(new_post_get)
             .service(new_thread)

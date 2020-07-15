@@ -1,12 +1,17 @@
 use crate::models;
 use actix_web::web;
 use diesel::pg::PgConnection;
+use diesel::{QueryResult, NotFound, OptionalExtension};
+
+use diesel::prelude::*;
+
+use crate::diesel::QueryDsl;
+use crate::diesel::RunQueryDsl;
 
 pub fn insert_new_post(
     form_data: web::Form<models::NewPostForm>,
     conn: &PgConnection,
 ) -> Result<models::Post, diesel::result::Error> {
-    use crate::diesel::RunQueryDsl;
     use crate::schema::posts;
     use crate::schema::posts::dsl::*;
     let new_post = models::NewPost {
@@ -21,12 +26,14 @@ pub fn insert_new_post(
         .returning(post_id)
         .get_result(conn)?;
     Ok(models::Post {
-        name: form_data.name.to_owned(),
+        name: Some(form_data.name.to_owned()),
         text: form_data.text.to_owned(),
-        board_id: form_data.board_id,
+        board_id: Some(form_data.board_id),
         post_id: res,
         parent_id: form_data.parent_id,
-        thread_id: form_data.thread_id
+        thread_id: form_data.thread_id,
+        ip: None,
+        created_at: None,
     })
 }
 
@@ -46,15 +53,13 @@ pub fn get_board(id: i32, conn: &PgConnection) -> Result<String, diesel::result:
     }
     Ok("/".into())
 }
-use diesel::{QueryResult, NotFound, OptionalExtension};
 
 pub fn get_board_id_by_slug(
     slug: String,
     conn: &PgConnection,
 ) -> Result<(i32, Option<String>), diesel::result::Error> {
     use crate::diesel::ExpressionMethods;
-    use crate::diesel::QueryDsl;
-    use crate::diesel::RunQueryDsl;
+
     use crate::schema::boards::dsl::*;
 
     let res = boards
@@ -67,3 +72,13 @@ pub fn get_board_id_by_slug(
     }
     Err(NotFound)   
 }
+
+pub fn get_posts(
+    id: i32,
+    conn: &PgConnection,
+) -> Result<Vec<models::Post>, diesel::result::Error> {
+    use crate::schema::posts::dsl::*;
+    Ok(posts.filter(thread_id.eq(id)).order_by(created_at)
+        .limit(50)
+        .load::<models::Post>(conn)?)
+} 

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use super::schema::posts;
 use super::schema::boards;
-
+use chrono::naive::NaiveDateTime;
 #[derive(Insertable, Queryable)]
 #[table_name="boards"]
 pub struct Board {
@@ -11,13 +11,14 @@ pub struct Board {
 }
 
 
-#[derive(Queryable, Serialize)]
-// #[table_name="posts"]
+#[derive(Queryable, Debug, Serialize)]
 pub struct Post {
-    pub post_id: i32,
-    pub name: String,
+    pub name: Option<String>,
     pub text: String,
-    pub board_id: i32,
+    pub post_id: i32,
+    pub board_id: Option<i32>,
+    pub ip: Option<String>,
+    pub created_at: Option<NaiveDateTime>,
     pub parent_id: Option<i32>,
     pub thread_id: Option<i32>,
 }
